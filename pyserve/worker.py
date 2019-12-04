@@ -3,20 +3,9 @@ import queue
 import threading
 from typing import Type
 
+from pyserve.gateway import DummyGateway, WSGI
+
 logger = logging.getLogger(__name__)
-
-DUMMY_RESPONSE = '''HTTP/1.1 200 OK
-Date: Mon, 27 Jul 2009 12:28:53 GMT
-Server: Apache/2.2.14 (Win32)
-Last-Modified: Wed, 22 Jul 2009 19:15:56 GMT
-Content-Type: text/html
-Connection: Closed
-
-<html>
-<body>
-<h1>Hello, World!</h1>
-</body>
-</html>'''
 
 
 class Worker:
@@ -25,10 +14,20 @@ class Worker:
 
     def setup(self, config):
         self.config = config
-        # What should be the size of this queue
+
+        # What should be the size of this queue?
         self.queue = queue.Queue(maxsize=config.get('concurrency', 10))
+
+        app_type = config.get('app-type', 'dummy')
+        if app_type == 'dummy':
+            self.gateway = DummyGateway()
+        elif app_type == 'wsgi':
+            self.gateway = WSGI(config['app-loc'], config['app-module'], config['app'])
+
         self.kill_pill = threading.Event()
-        threads = [RequestProcessorThread(name=f'RequestProcessor {i}', queue=self.queue, kill_pill=self.kill_pill) for i in range(config.get('concurrency', 10))]
+
+        # Is using threads ok?
+        threads = [RequestProcessorThread(name=f'RequestProcessor {i}', queue=self.queue, kill_pill=self.kill_pill, gateway=self.gateway) for i in range(config.get('concurrency', 10))]
         for t in threads:
             t.start()
 
@@ -42,7 +41,7 @@ class Worker:
         try:
             self.queue.put(sock, timeout=self.config.get('timeout', 5))
         except queue.Full:
-            # What should we do here
+            # What should we do here?
             pass
 
     def shutdown(self):
@@ -52,10 +51,11 @@ class Worker:
 
 class RequestProcessorThread(threading.Thread):
 
-    def __init__(self, group=None, target=None, name=None, queue:queue.Queue=None, kill_pill=None, args=(), kwargs=None):
+    def __init__(self, group=None, target=None, name=None, queue:queue.Queue=None, kill_pill=None, gateway=None, args=(), kwargs=None):
         super().__init__(group=group, target=target, name=name, args=args, kwargs=kwargs)
         self.queue: Type[queue.Queue] = queue
         self.kill_pill = kill_pill
+        self.gateway = gateway
 
     def run(self) -> None:
         logger.info(f"Running thread {self.name}")
@@ -67,7 +67,20 @@ class RequestProcessorThread(threading.Thread):
                 continue
 
     def process(self, sock):
+        # Should we read the body?
+        # Do we decide to read the body if method is not GET?
+        # What if we read the body even if method is GET?
+        # Does the server need to read the body or should we let the application read it?
         chunk = sock.recv(1000)
-        sock.send(str.encode(DUMMY_RESPONSE))
+        parts = chunk.decode("utf-8").split('\r\n')
+        parts = parts[0].split(' ')
+        path = parts[1]
+
+        def write(data):
+            sock.send(data)
+
+        self.gateway.process(path, sock, write)
+
+        # Should we close the connection?
         sock.close()
 
