@@ -1,0 +1,8 @@
+port: 9989
+concurrency: 5
+backlog: 100
+timeout: 5
+app-type: wsgi
+app-loc: /Users/vaibhav.sinha/Documents/Work/Learn/pyserve/testing/pyapp
+app-module: wsgi
+app: application
