@@ -18,6 +18,7 @@ class Worker:
         # What should be the size of this queue?
         self.queue = queue.Queue(maxsize=config.get('concurrency', 10))
 
+        # Should we have one instance of App or multiple?
         app_type = config.get('app-type', 'dummy')
         if app_type == 'dummy':
             self.gateway = DummyGateway()
@@ -27,6 +28,8 @@ class Worker:
         self.kill_pill = threading.Event()
 
         # Is using threads ok?
+        # When should they be started?
+        # How would choice of concurrency model and start time impact resource usage?
         threads = [RequestProcessorThread(name=f'RequestProcessor {i}', queue=self.queue, kill_pill=self.kill_pill, gateway=self.gateway) for i in range(config.get('concurrency', 10))]
         for t in threads:
             t.start()
@@ -71,6 +74,7 @@ class RequestProcessorThread(threading.Thread):
         # Do we decide to read the body if method is not GET?
         # What if we read the body even if method is GET?
         # Does the server need to read the body or should we let the application read it?
+        # If we read the body, how long should we read it in terms of time?
         chunk = sock.recv(1000)
         parts = chunk.decode("utf-8").split('\r\n')
         parts = parts[0].split(' ')

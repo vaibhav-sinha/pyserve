@@ -23,6 +23,8 @@ class DummyGateway:
 
 class WSGI:
 
+    # https://www.python.org/dev/peps/pep-3333/
+
     def __init__(self, app_loc, app_module, app):
         import importlib.util
         spec = importlib.util.spec_from_file_location(app_module, app_loc + f"/{app_module}.py")
