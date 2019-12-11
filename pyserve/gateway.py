@@ -31,7 +31,6 @@ class WSGI:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
-        # Should the app be loaded here or in worker?
         self.app = getattr(module, app)
 
     def process(self, path, input, write):
