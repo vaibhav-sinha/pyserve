@@ -3,6 +3,8 @@ import queue
 import threading
 from typing import Type
 
+from http_parser.pyparser import HttpParser
+
 from pyserve.gateway import DummyGateway, WSGI
 
 logger = logging.getLogger(__name__)
@@ -11,6 +13,12 @@ logger = logging.getLogger(__name__)
 class Worker:
 
     is_stopped = False
+
+    def __init__(self):
+        self.config = None
+        self.queue = None
+        self.gateway = None
+        self.kill_pill = None
 
     def setup(self, config):
         self.config = config
@@ -23,7 +31,7 @@ class Worker:
         if app_type == 'dummy':
             self.gateway = DummyGateway()
         elif app_type == 'wsgi':
-            self.gateway = WSGI(config['app-loc'], config['app-module'], config['app'])
+            self.gateway = WSGI(config)
 
         self.kill_pill = threading.Event()
 
@@ -75,15 +83,22 @@ class RequestProcessorThread(threading.Thread):
         # What if we read the body even if method is GET?
         # Does the server need to read the body or should we let the application read it?
         # If we read the body, how long should we read it in terms of time?
-        chunk = sock.recv(1000)
-        parts = chunk.decode("utf-8").split('\r\n')
-        parts = parts[0].split(' ')
-        path = parts[1]
+        p = HttpParser()
+        while True:
+            data = sock.recv(1024)
+            if not data:
+                # The client closed the connection. Nothing to do anymore
+                return
+
+            p.execute(data, len(data))
+
+            if p.is_message_complete():
+                break
 
         def write(data):
             sock.send(data)
 
-        self.gateway.process(path, sock, write)
+        self.gateway.process(p, write)
 
         # Should we close the connection?
         sock.close()
