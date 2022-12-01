@@ -59,7 +59,7 @@ class WSGI:
         outputs = self.app(env, start_response)
 
         status, response_headers = headers
-        write(str.encode('HTTP/1.1: %s\r\n' % status))
+        write(str.encode('HTTP/1.1 %s\r\n' % status))
         for header in response_headers:
             write(str.encode('%s: %s\r\n' % header))
         write(str.encode('\r\n'))
